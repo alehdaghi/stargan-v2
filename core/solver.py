@@ -83,9 +83,9 @@ class Solver(nn.Module):
         optims = self.optims
 
         # fetch random validation images for debugging
-        fetcher = InputFetcher(loaders.src, loaders.ref, args.latent_dim, 'train')
-        fetcher_val = InputFetcher(loaders.val, None, args.latent_dim, 'val')
-        inputs_val = next(fetcher_val)
+        fetcher = InputFetcher(loaders.src, args.latent_dim, mode='train', num_pos=args.num_pos)
+        # fetcher_val = InputFetcher(loaders.val, None, args.latent_dim, 'val')
+        # inputs_val = next(fetcher_val)
 
         # resume training if necessary
         if args.resume_iter > 0:

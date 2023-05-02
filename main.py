@@ -37,18 +37,13 @@ def main(args):
     solver = Solver(args)
 
     if args.mode == 'train':
-        assert len(subdirs(args.train_img_dir)) == args.num_domains
-        assert len(subdirs(args.val_img_dir)) == args.num_domains
+        # assert len(subdirs(args.train_img_dir)) == args.num_domains
+        # assert len(subdirs(args.val_img_dir)) == args.num_domains
         loaders = Munch(src=get_train_loader(root=args.train_img_dir,
                                              which='source',
                                              img_size=args.img_size,
                                              batch_size=args.batch_size,
-                                             prob=args.randcrop_prob,
-                                             num_workers=args.num_workers),
-                        ref=get_train_loader(root=args.train_img_dir,
-                                             which='reference',
-                                             img_size=args.img_size,
-                                             batch_size=args.batch_size,
+                                             num_pos= args.num_pos,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
                         val=get_test_loader(root=args.val_img_dir,
@@ -116,8 +111,10 @@ if __name__ == '__main__':
                         help='Number of total iterations')
     parser.add_argument('--resume_iter', type=int, default=0,
                         help='Iterations to resume training/testing')
-    parser.add_argument('--batch_size', type=int, default=8,
+    parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for training')
+    parser.add_argument("--num_pos", type=int, default=5,
+                        help='Number of positive for each id in the batch')
     parser.add_argument('--val_batch_size', type=int, default=32,
                         help='Batch size for validation')
     parser.add_argument('--lr', type=float, default=1e-4,
@@ -137,15 +134,15 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, required=True,
                         choices=['train', 'sample', 'eval', 'align'],
                         help='This argument is used in solver')
-    parser.add_argument('--num_workers', type=int, default=4,
+    parser.add_argument('--num_workers', type=int, default=0,
                         help='Number of workers used in DataLoader')
     parser.add_argument('--seed', type=int, default=777,
                         help='Seed for random number generator')
 
     # directory for training
-    parser.add_argument('--train_img_dir', type=str, default='data/celeba_hq/train',
+    parser.add_argument('--train_img_dir', type=str, default='/media/mahdi/data/datasets/afhq/data/train',
                         help='Directory containing training images')
-    parser.add_argument('--val_img_dir', type=str, default='data/celeba_hq/val',
+    parser.add_argument('--val_img_dir', type=str, default='/media/mahdi/data/datasets/afhq/data/test',
                         help='Directory containing validation images')
     parser.add_argument('--sample_dir', type=str, default='expr/samples',
                         help='Directory for saving generated images')

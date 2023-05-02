@@ -13,6 +13,8 @@ from itertools import chain
 import os
 import random
 
+import numpy
+from einops import einops
 from munch import Munch
 from PIL import Image
 import numpy as np
@@ -22,6 +24,8 @@ from torch.utils import data
 from torch.utils.data.sampler import WeightedRandomSampler
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
+
+from reid.data_loader import SYSUData
 
 
 def listdir(dname):
@@ -86,7 +90,7 @@ def _make_balanced_sampler(labels):
 
 
 def get_train_loader(root, which='source', img_size=256,
-                     batch_size=8, prob=0.5, num_workers=4):
+                     batch_size=8, num_pos=8, prob=0.5, num_workers=4):
     print('Preparing DataLoader to fetch %s images '
           'during the training phase...' % which)
 
@@ -96,8 +100,9 @@ def get_train_loader(root, which='source', img_size=256,
         lambda x: crop(x) if random.random() < prob else x)
 
     transform = transforms.Compose([
+        transforms.ToPILImage(),
         rand_crop,
-        transforms.Resize([img_size, img_size]),
+        transforms.Resize([img_size, img_size//2]),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5],
@@ -105,19 +110,25 @@ def get_train_loader(root, which='source', img_size=256,
     ])
 
     if which == 'source':
-        dataset = ImageFolder(root, transform)
+        dataset = SYSUData(transform=transform)
     elif which == 'reference':
         dataset = ReferenceDataset(root, transform)
     else:
         raise NotImplementedError
 
-    sampler = _make_balanced_sampler(dataset.targets)
-    return data.DataLoader(dataset=dataset,
-                           batch_size=batch_size,
-                           sampler=sampler,
-                           num_workers=num_workers,
-                           pin_memory=True,
-                           drop_last=True)
+    # sampler = _make_balanced_sampler(dataset.targets)
+    # return data.DataLoader(dataset=dataset,
+    #                        batch_size=batch_size,
+    #                        sampler=sampler,
+    #                        num_workers=num_workers,
+    #                        pin_memory=True,
+    #                        drop_last=True)
+    loader_batch = batch_size * num_pos
+    sampler = dataset.samplize(batch_size, num_pos)
+    return data.DataLoader(
+        dataset, batch_size=loader_batch,  sampler=sampler, num_workers=num_workers
+    )
+
 
 
 def get_eval_loader(root, img_size=256, batch_size=32,
@@ -168,44 +179,50 @@ def get_test_loader(root, img_size=256, batch_size=32,
 
 
 class InputFetcher:
-    def __init__(self, loader, loader_ref=None, latent_dim=16, mode=''):
+    def __init__(self, loader, loader_ref=None, latent_dim=16, mode='', num_pos=8):
         self.loader = loader
         self.loader_ref = loader_ref
         self.latent_dim = latent_dim
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.mode = mode
+        self.num_pos = num_pos
 
     def _fetch_inputs(self):
         try:
-            x, y = next(self.iter)
+            v, i, l1, l2, c1 , c2  = next(self.iter)
         except (AttributeError, StopIteration):
             self.iter = iter(self.loader)
-            x, y = next(self.iter)
-        return x, y
+            v, i, l1, l2, c1 , c2  = next(self.iter)
+        return v, i, l1, l2, c1, c2
 
-    def _fetch_refs(self):
-        try:
-            x, x2, y = next(self.iter_ref)
-        except (AttributeError, StopIteration):
-            self.iter_ref = iter(self.loader_ref)
-            x, x2, y = next(self.iter_ref)
-        return x, x2, y
+
 
     def __next__(self):
-        x, y = self._fetch_inputs()
+        v, i, l1, l2, c1, c2 = self._fetch_inputs()
+        y = torch.ones_like(l1)
+        y_ref = torch.zeros_like(l1)
+
+        b = self.loader.batch_size // self.num_pos
+        r = numpy.asarray([[0]*self.num_pos]*b)
+        for k in range(b):
+            r[k] = torch.randperm(self.num_pos) + k * self.num_pos
+        r = r.reshape(-1)
+        # x = torch.stack([v, i], dim=0)
+        # x = einops.rearrange(i, '(m n p) ... -> n (p m) ...', p=self.num_pos, m=1)
+        # x
+
         if self.mode == 'train':
-            x_ref, x_ref2, y_ref = self._fetch_refs()
-            z_trg = torch.randn(x.size(0), self.latent_dim)
-            z_trg2 = torch.randn(x.size(0), self.latent_dim)
-            inputs = Munch(x_src=x, y_src=y, y_ref=y_ref,
-                           x_ref=x_ref, x_ref2=x_ref2,
+            z_trg = torch.randn(v.size(0), self.latent_dim)
+            z_trg2 = torch.randn(v.size(0), self.latent_dim)
+            inputs = Munch(x_src=v, y_src=y, y_ref=y_ref,
+                           x_ref=i, x_ref2=i[r],
                            z_trg=z_trg, z_trg2=z_trg2)
         elif self.mode == 'val':
             x_ref, y_ref = self._fetch_inputs()
-            inputs = Munch(x_src=x, y_src=y,
-                           x_ref=x_ref, y_ref=y_ref)
+            inputs = Munch(x_src=v, y_src=y,
+                           x_ref=i, y_ref=y_ref)
         elif self.mode == 'test':
-            inputs = Munch(x=x, y=y)
+            inputs = Munch(x=v, y=y)
         else:
             raise NotImplementedError
 
