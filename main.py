@@ -46,11 +46,12 @@ def main(args):
                                              num_pos= args.num_pos,
                                              prob=args.randcrop_prob,
                                              num_workers=args.num_workers),
-                        val=get_test_loader(root=args.val_img_dir,
-                                            img_size=args.img_size,
-                                            batch_size=args.val_batch_size,
-                                            shuffle=True,
-                                            num_workers=args.num_workers))
+                        # val=get_test_loader(root=args.val_img_dir,
+                        #                     img_size=args.img_size,
+                        #                     batch_size=args.val_batch_size,
+                        #                     shuffle=True,
+                        #                     num_workers=args.num_workers)
+                        )
         solver.train(loaders)
     elif args.mode == 'sample':
         assert len(subdirs(args.src_dir)) == args.num_domains
