@@ -182,7 +182,7 @@ class Generator(nn.Module):
             x = block(x, s)
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
                 mask = masks[0] if x.size(2) in [32] else masks[1]
-                mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                mask = F.interpolate(mask, size=(x.size(2), x.size(3)), mode='bilinear')
                 x = x + self.hpf(mask * cache[x.size(2)])
         return self.to_rgb(x)
 
@@ -243,6 +243,7 @@ class StyleEncoder(nn.Module):
 
     def forward(self, x, y):
         h = self.shared(x)
+        h = F.adaptive_avg_pool2d(h, 1)
         h = h.view(h.size(0), -1)
         out = []
         for layer in self.unshared:
@@ -274,6 +275,7 @@ class Discriminator(nn.Module):
 
     def forward(self, x, y):
         out = self.main(x)
+        out = F.adaptive_avg_pool2d(out, 1)
         out = out.view(out.size(0), -1)  # (batch, num_domains)
         idx = torch.LongTensor(range(y.size(0))).to(y.device)
         out = out[idx, y]  # (batch)
@@ -281,10 +283,10 @@ class Discriminator(nn.Module):
 
 
 def build_model(args):
-    generator = nn.DataParallel(Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf))
+    generator = nn.DataParallel(Generator(args.img_size//2, args.style_dim, w_hpf=args.w_hpf))
     mapping_network = nn.DataParallel(MappingNetwork(args.latent_dim, args.style_dim, args.num_domains))
-    style_encoder = nn.DataParallel(StyleEncoder(args.img_size, args.style_dim, args.num_domains))
-    discriminator = nn.DataParallel(Discriminator(args.img_size, args.num_domains))
+    style_encoder = nn.DataParallel(StyleEncoder(args.img_size//2, args.style_dim, args.num_domains))
+    discriminator = nn.DataParallel(Discriminator(args.img_size//2, args.num_domains))
     generator_ema = copy.deepcopy(generator)
     mapping_network_ema = copy.deepcopy(mapping_network)
     style_encoder_ema = copy.deepcopy(style_encoder)
