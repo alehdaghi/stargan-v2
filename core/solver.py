@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 from core.model import build_model
 from core.checkpoint import CheckpointIO
 from core.data_loader import InputFetcher
@@ -55,7 +56,8 @@ class Solver(nn.Module):
                 CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema),
                 CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_optims.ckpt'), **self.optims)]
         else:
-            self.ckptios = [CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema)]
+            self.ckptios = [
+                CheckpointIO(ospj(args.checkpoint_dir, '{:06d}_nets_ema.ckpt'), data_parallel=True, **self.nets_ema)]
 
         self.to(self.device)
         for name, network in self.named_children():
@@ -128,7 +130,7 @@ class Solver(nn.Module):
             optims.style_encoder.step()
 
             g_loss, g_losses_ref = compute_g_loss(
-                nets, args, x_real, y_org, y_trg, x_refs=[x_ref, x_ref2], masks=masks)
+                nets, args, x_real, y_org, y_trg, x_refs=[x_ref, x_ref2], masks=masks, it = i, epoch=0)
             self._reset_grad()
             g_loss.backward()
             optims.generator.step()
@@ -143,10 +145,10 @@ class Solver(nn.Module):
                 args.lambda_ds -= (initial_lambda_ds / args.ds_iter)
 
             # print out log info
-            if (i+1) % args.print_every == 0:
+            if (i + 1) % args.print_every == 0:
                 elapsed = time.time() - start_time
                 elapsed = str(datetime.timedelta(seconds=elapsed))[:-7]
-                log = "Elapsed time [%s], Iteration [%i/%i], " % (elapsed, i+1, args.total_iters)
+                log = "Elapsed time [%s], Iteration [%i/%i], " % (elapsed, i + 1, args.total_iters)
                 all_losses = dict()
                 for loss, prefix in zip([d_losses_latent, d_losses_ref, g_losses_latent, g_losses_ref],
                                         ['D/latent_', 'D/ref_', 'G/latent_', 'G/ref_']):
@@ -156,19 +158,21 @@ class Solver(nn.Module):
                 log += ' '.join(['%s: [%.4f]' % (key, value) for key, value in all_losses.items()])
                 print(log)
 
+
             # generate images for debugging
-            if (i+1) % args.sample_every == 0:
+            inputs_val = Munch(x_src = x_real,y_src=y_org,x_ref=x_ref, y_ref=y_trg)
+            if (i + 1) % args.sample_every == 0:
                 os.makedirs(args.sample_dir, exist_ok=True)
-                utils.debug_image(nets_ema, args, inputs=inputs_val, step=i+1)
+                utils.debug_image(nets_ema, args, inputs=inputs_val, step=i + 1)
 
             # save model checkpoints
-            if (i+1) % args.save_every == 0:
-                self._save_checkpoint(step=i+1)
+            if (i + 1) % args.save_every == 0:
+                self._save_checkpoint(step=i + 1)
 
             # compute FID and LPIPS if necessary
-            if (i+1) % args.eval_every == 0:
-                calculate_metrics(nets_ema, args, i+1, mode='latent')
-                calculate_metrics(nets_ema, args, i+1, mode='reference')
+            if (i + 1) % args.eval_every == 0:
+                calculate_metrics(nets_ema, args, i + 1, mode='latent')
+                calculate_metrics(nets_ema, args, i + 1, mode='reference')
 
     @torch.no_grad()
     def sample(self, loaders):
@@ -223,7 +227,7 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, mas
                        reg=loss_reg.item())
 
 
-def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None):
+def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, masks=None, it=-1, epoch=0):
     assert (z_trgs is None) != (x_refs is None)
     if z_trgs is not None:
         z_trg, z_trg2 = z_trgs
@@ -260,7 +264,16 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, m
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))
 
     loss = loss_adv + args.lambda_sty * loss_sty \
-        - args.lambda_ds * loss_ds + args.lambda_cyc * loss_cyc
+           - args.lambda_ds * loss_ds + args.lambda_cyc * loss_cyc
+
+    # if it % 300 == 0 and x_refs is not None:
+    #     utils.save_image(
+    #         invTrans(torch.cat([x_real, x_ref, x_fake, x_fake2, x_rec], 0)),
+    #         f"sample-new/ir50_{str(epoch + 1).zfill(5)}_{str(i).zfill(5)}.png",
+    #         nrow=len(x_real),
+    #         # normalize=True,
+    #         range=(-1, 1),
+    #     )
     return loss, Munch(adv=loss_adv.item(),
                        sty=loss_sty.item(),
                        ds=loss_ds.item(),
@@ -287,6 +300,6 @@ def r1_reg(d_out, x_in):
         create_graph=True, retain_graph=True, only_inputs=True
     )[0]
     grad_dout2 = grad_dout.pow(2)
-    assert(grad_dout2.size() == x_in.size())
+    assert (grad_dout2.size() == x_in.size())
     reg = 0.5 * grad_dout2.view(batch_size, -1).sum(1).mean(0)
     return reg
