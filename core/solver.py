@@ -104,6 +104,10 @@ class Solver(nn.Module):
             x_real, y_org = inputs.x_src, inputs.y_src
             x_ref, x_ref2, y_trg = inputs.x_ref, inputs.x_ref2, inputs.y_ref
             z_trg, z_trg2 = inputs.z_trg, inputs.z_trg2
+            #make rgb to gray
+            w = torch.rand(x_real.shape[0], 3).cuda() + 0.01
+            w = w / (abs(w.sum(dim=1, keepdim=True)) + 0.01)
+            x_real = torch.einsum('b c w h, b c -> b w h', x_real, w).unsqueeze(1).expand(-1, 3, -1, -1)
 
             masks = nets.fan.get_heatmap(x_real) if args.w_hpf > 0 else None
 
