@@ -128,7 +128,6 @@ class Solver(nn.Module):
                 nets, args, x_real, y_org, y_trg, x_fake_z=x_fake_z, x_fake_ref=x_fake_ref, s_trg_z=s_trg_z, s_trg_ref=s_trg_ref,
                 z_trgs=[z_trg, z_trg2], x_refs=[x_ref, x_ref2], masks=masks)
 
-
             self._reset_grad()
             g_loss.backward()
             optims.generator.step()
@@ -242,8 +241,9 @@ def compute_g_loss2(nets, args, x_real, y_org, y_trg, x_fake_z, x_fake_ref, s_tr
     loss_sty = torch.mean(torch.abs(s_pred_1 - s_trg_z)) + torch.mean(torch.abs(s_pred_2 - s_trg_ref))
 
     # diversity sensitive loss
-    x_fake_z2, s_trg_z2 = generateImg(nets, x_real,y_trg,z_trg=z_trg2, masks=masks)
-    x_fake_ref2, s_trg_ref2 = generateImg(nets, x_real, y_trg, x_ref=x_ref2, masks=masks)
+    with torch.no_grad():
+        x_fake_z2, s_trg_z2 = generateImg(nets, x_real,y_trg,z_trg=z_trg2, masks=masks)
+        x_fake_ref2, s_trg_ref2 = generateImg(nets, x_real, y_trg, x_ref=x_ref2, masks=masks)
 
     loss_ds = torch.mean(torch.abs(x_fake_z - x_fake_z2.detach())) + torch.mean(torch.abs(x_fake_ref - x_fake_ref2.detach()))
 
