@@ -174,7 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--print_every', type=int, default=10)
     parser.add_argument('--sample_every', type=int, default=500)
     parser.add_argument('--save_every', type=int, default=1000)
-    parser.add_argument('--eval_every', type=int, default=50000)
+    parser.add_argument('--eval_every', type=int, default=500000)
 
     args = parser.parse_args()
     main(args)
