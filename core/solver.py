@@ -121,7 +121,7 @@ class Solver(nn.Module):
 
             # train the generator
             g_loss, g_losses_latent = compute_g_loss2(
-                nets, args, x_real, y_org, y_trg, x_fake_z=x_fake_z, x_fake_ref=x_fake_ref,
+                nets, args, x_real, y_org, y_trg, x_fake_z=x_fake_z, x_fake_ref=x_fake_ref, s_trg_z=s_trg_z, s_trg_ref=s_trg_ref,
                 z_trgs=[z_trg, z_trg2], x_refs=[x_ref, x_ref2], masks=masks)
 
 
