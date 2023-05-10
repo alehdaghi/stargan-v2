@@ -182,6 +182,8 @@ if __name__ == '__main__':
     parser.add_argument('--radius', type=int, default=21)
     parser.add_argument('--w_scale', type=float, default=1)
     parser.add_argument("--poly_decay", action="store_true")
+    parser.add_argument('--lambda_recon', type=float, default=1,
+                        help='Weight for image reconstruction loss 2 ')
     parser.add_argument('--lambda_recon_blur', type=float, default=1,
                         help='Weight for image reconstruction loss blur')
     parser.add_argument('--lambda_recon_fft', type=float, default=1,
