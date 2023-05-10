@@ -24,6 +24,8 @@ from core.checkpoint import CheckpointIO
 from core.data_loader import InputFetcher
 import core.utils as utils
 from metrics.eval import calculate_metrics
+from utils_freq.freq_fourier_loss import fft_L1_loss_color
+from utils_freq.freq_pixel_loss import find_fake_freq, get_gaussian_kernel
 
 
 class Solver(nn.Module):
@@ -96,6 +98,8 @@ class Solver(nn.Module):
         # remember the initial value of ds weight
         initial_lambda_ds = args.lambda_ds
 
+        gauss_kernel = get_gaussian_kernel(args.gauss_size).cuda()
+
         print('Start training...')
         start_time = time.time()
         for i in range(args.resume_iter, args.total_iters):
@@ -126,7 +130,7 @@ class Solver(nn.Module):
             # train the generator
             g_loss, g_losses_latent = compute_g_loss2(
                 nets, args, x_real, y_org, y_trg, x_fake_z=x_fake_z, x_fake_ref=x_fake_ref, s_trg_z=s_trg_z, s_trg_ref=s_trg_ref,
-                z_trgs=[z_trg, z_trg2], x_refs=[x_ref, x_ref2], masks=masks)
+                z_trgs=[z_trg, z_trg2], x_refs=[x_ref, x_ref2], masks=masks, gauss_kernel=gauss_kernel)
 
             self._reset_grad()
             g_loss.backward()
@@ -223,7 +227,7 @@ def compute_d_loss2(nets, args, x_real, y_org, y_trg, x_fake_z, x_fake_ref):
                        fake=loss_fake.item(),
                        reg=loss_reg.item())
 
-def compute_g_loss2(nets, args, x_real, y_org, y_trg, x_fake_z, x_fake_ref, s_trg_z, s_trg_ref, z_trgs=None, x_refs=None, masks=None):
+def compute_g_loss2(nets, args, x_real, y_org, y_trg, x_fake_z, x_fake_ref, s_trg_z, s_trg_ref, z_trgs=None, x_refs=None, masks=None, gauss_kernel=None):
 
     if z_trgs is not None:
         z_trg, z_trg2 = z_trgs
@@ -255,8 +259,19 @@ def compute_g_loss2(nets, args, x_real, y_org, y_trg, x_fake_z, x_fake_ref, s_tr
     x_rec_ref = nets.generator(x_fake_ref, s_org_z, masks=masks_ref)
     loss_cyc = torch.mean(torch.abs(x_rec_z - x_real)) + torch.mean(torch.abs(x_rec_ref - x_real))
 
+    ## recon loss
+    x_rec2 = nets.generator(x_real, s_org_z, masks=masks)
+    loss_recon = torch.mean(torch.abs(x_rec2 - x_real))
+
+    # freq loss
+    x_real_freq = find_fake_freq(x_real, gauss_kernel)  # , find=True, index=index
+    x_rec2_freq = find_fake_freq(x_rec2, gauss_kernel)
+    loss_rec_blur = F.l1_loss(x_rec2_freq, x_real_freq)
+    loss_recon_fft = fft_L1_loss_color(x_rec2, x_real)
+
     loss = loss_adv + args.lambda_sty * loss_sty \
-           - args.lambda_ds * loss_ds + args.lambda_cyc * loss_cyc
+           - args.lambda_ds * loss_ds + args.lambda_cyc * loss_cyc + args.lambda_recon * loss_recon \
+           +args.w_scale * (  args.lambda_recon_blur * loss_rec_blur + args.lambda_recon_fft * loss_recon_fft )
 
     return loss, Munch(adv=loss_adv.item(),
                        sty=loss_sty.item(),

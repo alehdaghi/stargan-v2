@@ -176,5 +176,16 @@ if __name__ == '__main__':
     parser.add_argument('--save_every', type=int, default=1000)
     parser.add_argument('--eval_every', type=int, default=500000)
 
+    parser.add_argument('--tb_dir', type=str, default='tb',
+                        help='output directory when aligning faces')
+    parser.add_argument('--gauss_size', type=int, default=21)
+    parser.add_argument('--radius', type=int, default=21)
+    parser.add_argument('--w_scale', type=float, default=1)
+    parser.add_argument("--poly_decay", action="store_true")
+    parser.add_argument('--lambda_recon_blur', type=float, default=1,
+                        help='Weight for image reconstruction loss blur')
+    parser.add_argument('--lambda_recon_fft', type=float, default=1,
+                        help='Weight for image reconstruction loss fft ')
+
     args = parser.parse_args()
     main(args)
