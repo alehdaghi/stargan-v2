@@ -186,6 +186,8 @@ if __name__ == '__main__':
                         help='Weight for image reconstruction loss blur')
     parser.add_argument('--lambda_recon_fft', type=float, default=1,
                         help='Weight for image reconstruction loss fft ')
-
+    parser.add_argument('--gpu', default='0', type=str,
+                        help='gpu device ids for CUDA_VISIBLE_DEVICES')
     args = parser.parse_args()
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
     main(args)
