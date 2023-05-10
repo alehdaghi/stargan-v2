@@ -6,7 +6,7 @@ import pdb
 
 def calc_fft(image):
     '''image is tensor, N*C*H*W'''
-    fft = torch.rfft(image, 2, onesided=False)
+    fft = torch.fft.rfft(image, 2, onesided=False)
     fft_mag = torch.log(1 + torch.sqrt(fft[..., 0] ** 2 + fft[..., 1] ** 2 + 1e-8))
     return fft_mag
 
